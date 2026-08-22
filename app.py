@@ -3,6 +3,7 @@ import streamlit as st
 import requests
 import json
 import time
+import os
 
 # Configure page metadata and premium styling
 st.set_page_config(
@@ -102,7 +103,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # API Base URL
-API_URL = "http://localhost:8000/api"
+API_URL = os.getenv("BACKEND_URL", "http://localhost:8000").rstrip("/") + "/api"
 
 # Initialize Session State
 if "repository_id" not in st.session_state:
