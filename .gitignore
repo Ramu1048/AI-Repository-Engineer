@@ -1,0 +1,20 @@
+# Environment variables
+.env
+
+# Pycache and bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local database storage
+db/
+
+# Repository clone cache
+data/
+
+# Pytest cache
+.pytest_cache/
+
+# Local temporary extract files
+temp_zip_extract_*
