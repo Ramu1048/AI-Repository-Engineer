@@ -171,18 +171,23 @@ def store_chunks(repository_id: str, chunks: list, embeddings: list[list[float]]
     Stores a list of Chunk objects and their embeddings in ChromaDB.
     Enforces repository isolation and overwrites existing chunks for the same repository_id.
     """
+    global _client
     if len(chunks) != len(embeddings):
         raise ValueError("The number of chunks and embeddings must match.")
         
-    collection = get_collection()
-    
     try:
+        collection = get_collection()
         # Overwrite strategy: clear any existing chunks for this repository_id first
         logger.info(f"Clearing existing chunks for repository '{repository_id}' in ChromaDB.")
         collection.delete(where={"repository_id": repository_id})
         _register_repository(repository_id)
     except Exception as e:
         logger.error(f"Failed to clear existing chunks for repository '{repository_id}': {e}")
+        if os.getenv("CHROMA_HOST"):
+            logger.warning(f"Chroma Cloud write failed during clear ({e}). Falling back globally to local persistent database.")
+            os.environ.pop("CHROMA_HOST", None)
+            _client = None
+            return store_chunks(repository_id, chunks, embeddings)
         raise VectorStoreWriteError(f"ChromaDB delete failure during re-indexing overwrite: {e}") from e
 
     if not chunks:
@@ -221,6 +226,11 @@ def store_chunks(repository_id: str, chunks: list, embeddings: list[list[float]]
         logger.info(f"Successfully stored {len(chunks)} chunks for repository '{repository_id}' in ChromaDB.")
     except Exception as e:
         logger.error(f"Failed to store chunks in ChromaDB: {e}")
+        if os.getenv("CHROMA_HOST"):
+            logger.warning(f"Chroma Cloud write failed during add ({e}). Falling back globally to local persistent database.")
+            os.environ.pop("CHROMA_HOST", None)
+            _client = None
+            return store_chunks(repository_id, chunks, embeddings)
         raise VectorStoreWriteError(f"ChromaDB write failure: {e}") from e
 
 
