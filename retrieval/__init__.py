@@ -1,5 +1,4 @@
-from .vector_retriever import retrieve, Chunk, RetrievedChunk
-from vectorstore.chroma_store import store_chunks, chunk_count
+from .vector_retriever import retrieve, Chunk, RetrievedChunk, store_chunks, chunk_count
 from .exceptions import (
     RetrievalBaseError,
     EmbeddingError,

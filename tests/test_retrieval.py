@@ -115,6 +115,8 @@ def setup_test_db(monkeypatch):
     monkeypatch.setenv("CHROMA_DB_DIR", test_dir)
     monkeypatch.setenv("EMBEDDING_PROVIDER", "huggingface")
     monkeypatch.setenv("HF_EMBEDDING_MODEL", "all-MiniLM-L6-v2")
+    monkeypatch.delenv("CHROMA_HOST", raising=False)
+    monkeypatch.delenv("CHROMA_API_KEY", raising=False)
     
     # Reset Chroma client singleton
     chroma_store._client = None

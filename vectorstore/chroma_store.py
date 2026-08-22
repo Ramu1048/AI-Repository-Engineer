@@ -85,16 +85,37 @@ def get_chroma_client():
         return _mock_client
 
     if _client is None:
-        db_dir = os.getenv("CHROMA_DB_DIR", "./db/chroma")
-        try:
-            os.makedirs(db_dir, exist_ok=True)
-            _client = chromadb.PersistentClient(
-                path=db_dir,
-                settings=Settings(anonymized_telemetry=False)
-            )
-        except Exception as e:
-            logger.error(f"Failed to initialize ChromaDB client at {db_dir}: {e}")
-            raise RuntimeError(f"ChromaDB initialization failure: {e}") from e
+        chroma_host = os.getenv("CHROMA_HOST")
+        if chroma_host:
+            chroma_api_key = os.getenv("CHROMA_API_KEY")
+            chroma_tenant = os.getenv("CHROMA_TENANT")
+            chroma_database = os.getenv("CHROMA_DATABASE")
+            headers = {"x-chroma-token": chroma_api_key} if chroma_api_key else None
+            
+            logger.info(f"Connecting to hosted ChromaDB client at {chroma_host} (database: {chroma_database})")
+            try:
+                _client = chromadb.HttpClient(
+                    host=chroma_host,
+                    ssl=True,
+                    tenant=chroma_tenant,
+                    database=chroma_database,
+                    headers=headers,
+                    settings=Settings(anonymized_telemetry=False)
+                )
+            except Exception as e:
+                logger.error(f"Failed to connect to hosted ChromaDB client at {chroma_host}: {e}")
+                raise RuntimeError(f"ChromaDB cloud connection failure: {e}") from e
+        else:
+            db_dir = os.getenv("CHROMA_DB_DIR", "./db/chroma")
+            try:
+                os.makedirs(db_dir, exist_ok=True)
+                _client = chromadb.PersistentClient(
+                    path=db_dir,
+                    settings=Settings(anonymized_telemetry=False)
+                )
+            except Exception as e:
+                logger.error(f"Failed to initialize ChromaDB client at {db_dir}: {e}")
+                raise RuntimeError(f"ChromaDB initialization failure: {e}") from e
     return _client
 
 

@@ -57,3 +57,13 @@ def retrieve(repository_id: str, question: str, top_k: int = 8) -> list[Retrieve
     # Query ChromaDB
     results = chroma_store.query(repository_id, query_embedding, top_k)
     return results
+
+
+def store_chunks(*args, **kwargs):
+    """Wrapper to call chroma_store.store_chunks to avoid circular imports."""
+    return chroma_store.store_chunks(*args, **kwargs)
+
+
+def chunk_count(*args, **kwargs):
+    """Wrapper to call chroma_store.chunk_count to avoid circular imports."""
+    return chroma_store.chunk_count(*args, **kwargs)
