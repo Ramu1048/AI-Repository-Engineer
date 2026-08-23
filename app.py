@@ -165,7 +165,39 @@ if analyze_button:
                     data = response.json()
                     st.session_state.repo_status = data
                     st.session_state.repository_id = data["repository_id"]
-                    st.sidebar.success("Repository analysis complete!")
+                    
+                    import time
+                    owner = data.get("owner")
+                    name = data.get("name")
+                    status_placeholder = st.sidebar.empty()
+                    
+                    max_attempts = 150  # 5 minutes
+                    attempt = 0
+                    while attempt < max_attempts:
+                        attempt += 1
+                        try:
+                            status_resp = requests.get(f"{API_URL}/repository/{owner}/{name}")
+                            if status_resp.status_code == 200:
+                                status_data = status_resp.json()
+                                st.session_state.repo_status = status_data
+                                current_status = status_data.get("indexing_status", "indexing")
+                                if current_status == "ready":
+                                    status_placeholder.success("Repository analysis complete!")
+                                    break
+                                elif current_status == "failed":
+                                    desc = status_data.get("description", "Unknown error")
+                                    status_placeholder.error(f"Analysis failed: {desc}")
+                                    break
+                                else:
+                                    status_placeholder.info(f"Indexing in progress... (Attempt {attempt})")
+                            else:
+                                status_placeholder.error(f"Failed to fetch status: HTTP {status_resp.status_code}")
+                        except Exception as e:
+                            status_placeholder.warning(f"Error checking status: {e}")
+                        
+                        time.sleep(2)
+                    else:
+                        status_placeholder.error("Analysis timed out. Please refresh or try again.")
                 else:
                     try:
                         err_detail = response.json().get("detail", "Unknown server error")

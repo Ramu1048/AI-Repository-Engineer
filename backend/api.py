@@ -4,7 +4,7 @@ import traceback
 from dotenv import load_dotenv
 load_dotenv()  # Load .env before any downstream modules read environment variables
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, BackgroundTasks
 from typing import List, Dict
 
 # Downstream imports
@@ -122,45 +122,9 @@ def _get_repository_id(owner: str, name: str) -> str:
         detail=f"Repository '{owner}/{name}' has not been analyzed yet. Please submit to /api/analyze first."
     )
 
-@app.post("/api/analyze", response_model=RepositoryStatus, responses={500: {"model": ErrorResponse}})
-def analyze_repository(request: AnalyzeRepositoryRequest):
-    """
-    Ingests, chunks, and indexes a GitHub repository.
-    """
-    url = request.github_url
-    if not url.startswith("http://") and not url.startswith("https://"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid GitHub URL. Must start with http:// or https://"
-        )
-
+def _run_indexing_background(repository_id: str, repo_url, github_meta, gh_client):
+    """Performs the actual long-running clone, chunk, embed, and index process in a background thread."""
     try:
-        # Step 1: Parse URL
-        repo_url = github_service.parse_github_url(url)
-        
-        # Step 2: Fetch metadata
-        gh_client = github_service.GitHubClient()
-        github_meta = gh_client.fetch_repo_metadata(repo_url.owner, repo_url.repository)
-        
-        # Step 3: Generate repository ID
-        repository_id = github_service.generate_repository_id(
-            repo_url.owner, repo_url.repository, github_meta["latest_commit_sha"]
-        )
-        
-        # Set status to indexing in memory
-        status_obj = RepositoryStatus(
-            repository_id=repository_id,
-            name=repo_url.repository,
-            owner=repo_url.owner,
-            description=github_meta.get("description", ""),
-            primary_language=github_meta.get("language", "unknown"),
-            languages=[github_meta.get("language")] if github_meta.get("language") else [],
-            file_count=0,
-            chunk_count=0,
-            indexing_status="indexing"
-        )
-        _REPOSITORIES[repository_id] = status_obj
-        
         # Step 4: Shallow-clone
         clone_path = github_service.clone_repository(
             owner=repo_url.owner,
@@ -218,13 +182,77 @@ def analyze_repository(request: AnalyzeRepositoryRequest):
         retrieval.store_chunks(repository_id, chunks, embeddings_list)
         
         # Step 9: Finalize status as ready
+        status_obj = _REPOSITORIES[repository_id]
         status_obj.file_count = meta.file_count_indexed
         status_obj.languages = meta.primary_languages
         status_obj.primary_language = meta.primary_languages[0] if meta.primary_languages else "unknown"
         status_obj.chunk_count = len(chunks)
         status_obj.indexing_status = "ready"
         
-        logger.info(f"Successfully indexed repo {repository_id} with {len(chunks)} chunks.")
+        logger.info(f"Successfully indexed repo {repository_id} in background with {len(chunks)} chunks.")
+    except Exception as e:
+        logger.error(f"Background indexing failed for repo {repository_id}: {e}\n{traceback.format_exc()}")
+        if repository_id in _REPOSITORIES:
+            _REPOSITORIES[repository_id].indexing_status = "failed"
+            _REPOSITORIES[repository_id].description = f"Indexing failed: {str(e)[:200]}"
+
+
+@app.post("/api/analyze", response_model=RepositoryStatus, responses={500: {"model": ErrorResponse}})
+def analyze_repository(request: AnalyzeRepositoryRequest, background_tasks: BackgroundTasks):
+    """
+    Ingests, chunks, and indexes a GitHub repository asynchronously.
+    """
+    url = request.github_url
+    if not url.startswith("http://") and not url.startswith("https://"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid GitHub URL. Must start with http:// or https://"
+        )
+
+    try:
+        # Step 1: Parse URL
+        repo_url = github_service.parse_github_url(url)
+        
+        # Step 2: Fetch metadata
+        gh_client = github_service.GitHubClient()
+        github_meta = gh_client.fetch_repo_metadata(repo_url.owner, repo_url.repository)
+        
+        # Step 3: Generate repository ID
+        repository_id = github_service.generate_repository_id(
+            repo_url.owner, repo_url.repository, github_meta["latest_commit_sha"]
+        )
+        
+        # Check if already ready or indexing
+        if repository_id in _REPOSITORIES:
+            status_obj = _REPOSITORIES[repository_id]
+            if status_obj.indexing_status in ("indexing", "ready"):
+                logger.info(f"Repository {repository_id} status is already {status_obj.indexing_status}. Returning existing status.")
+                return status_obj
+
+        # Set status to indexing in memory
+        status_obj = RepositoryStatus(
+            repository_id=repository_id,
+            name=repo_url.repository,
+            owner=repo_url.owner,
+            description=github_meta.get("description", ""),
+            primary_language=github_meta.get("language", "unknown"),
+            languages=[github_meta.get("language")] if github_meta.get("language") else [],
+            file_count=0,
+            chunk_count=0,
+            indexing_status="indexing"
+        )
+        _REPOSITORIES[repository_id] = status_obj
+        
+        # Start background indexing task
+        background_tasks.add_task(
+            _run_indexing_background,
+            repository_id,
+            repo_url,
+            github_meta,
+            gh_client
+        )
+        
+        logger.info(f"Successfully queued background indexing for repo {repository_id}.")
         return status_obj
 
     except Exception as exc:
