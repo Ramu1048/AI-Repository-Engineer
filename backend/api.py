@@ -109,14 +109,15 @@ def handle_exception(exc: Exception):
 
 
 def _get_repository_id(owner: str, name: str) -> str:
-    target_prefix = f"{owner}_{name}_"
+    target_prefix = f"{owner.lower()}_{name.lower()}_"
     for repo_key in _REPOSITORIES:
-        if repo_key.startswith(target_prefix):
+        if repo_key.lower().startswith(target_prefix):
             return repo_key
     # Fallback to legacy format or mock tests
-    fallback_id = f"{owner}/{name}"
-    if fallback_id in _REPOSITORIES:
-        return fallback_id
+    fallback_id = f"{owner.lower()}/{name.lower()}"
+    for repo_key in _REPOSITORIES:
+        if repo_key.lower() == fallback_id:
+            return repo_key
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail=f"Repository '{owner}/{name}' has not been analyzed yet. Please submit to /api/analyze first."
