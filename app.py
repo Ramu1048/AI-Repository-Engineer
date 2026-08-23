@@ -167,7 +167,10 @@ if analyze_button:
                     st.session_state.repository_id = data["repository_id"]
                     st.sidebar.success("Repository analysis complete!")
                 else:
-                    err_detail = response.json().get("detail", "Unknown server error")
+                    try:
+                        err_detail = response.json().get("detail", "Unknown server error")
+                    except Exception:
+                        err_detail = f"Server returned status {response.status_code}: {response.text[:200]}"
                     st.sidebar.error(f"Analysis failed: {err_detail}")
             except Exception as e:
                 st.sidebar.error(f"Error connecting to backend: {e}")
