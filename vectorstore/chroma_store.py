@@ -74,13 +74,14 @@ class MockClient:
 
 _client = None
 _mock_client = None
+_force_mock = False
 _in_memory_registry: set = set()  # tracks registered repos when using mock client
 
 def get_chroma_client():
-    global _client, _mock_client
-    if not HAS_CHROMA:
+    global _client, _mock_client, _force_mock
+    if not HAS_CHROMA or _force_mock:
         if _mock_client is None:
-            logger.info("ChromaDB library is missing. Initializing in-memory fallback client.")
+            logger.info("Initializing in-memory fallback client.")
             _mock_client = MockClient()
         return _mock_client
 
@@ -171,7 +172,7 @@ def store_chunks(repository_id: str, chunks: list, embeddings: list[list[float]]
     Stores a list of Chunk objects and their embeddings in ChromaDB.
     Enforces repository isolation and overwrites existing chunks for the same repository_id.
     """
-    global _client
+    global _client, _force_mock
     if len(chunks) != len(embeddings):
         raise ValueError("The number of chunks and embeddings must match.")
         
@@ -183,9 +184,9 @@ def store_chunks(repository_id: str, chunks: list, embeddings: list[list[float]]
         _register_repository(repository_id)
     except Exception as e:
         logger.error(f"Failed to clear existing chunks for repository '{repository_id}': {e}")
-        if os.getenv("CHROMA_HOST"):
-            logger.warning(f"Chroma Cloud write failed during clear ({e}). Falling back globally to local persistent database.")
-            os.environ.pop("CHROMA_HOST", None)
+        if os.getenv("CHROMA_HOST") and not _force_mock:
+            logger.warning(f"Chroma Cloud write failed during clear ({e}). Falling back globally to in-memory mock client.")
+            _force_mock = True
             _client = None
             return store_chunks(repository_id, chunks, embeddings)
         raise VectorStoreWriteError(f"ChromaDB delete failure during re-indexing overwrite: {e}") from e
@@ -226,9 +227,9 @@ def store_chunks(repository_id: str, chunks: list, embeddings: list[list[float]]
         logger.info(f"Successfully stored {len(chunks)} chunks for repository '{repository_id}' in ChromaDB.")
     except Exception as e:
         logger.error(f"Failed to store chunks in ChromaDB: {e}")
-        if os.getenv("CHROMA_HOST"):
-            logger.warning(f"Chroma Cloud write failed during add ({e}). Falling back globally to local persistent database.")
-            os.environ.pop("CHROMA_HOST", None)
+        if os.getenv("CHROMA_HOST") and not _force_mock:
+            logger.warning(f"Chroma Cloud write failed during add ({e}). Falling back globally to in-memory mock client.")
+            _force_mock = True
             _client = None
             return store_chunks(repository_id, chunks, embeddings)
         raise VectorStoreWriteError(f"ChromaDB write failure: {e}") from e
