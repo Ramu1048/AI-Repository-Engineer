@@ -50,6 +50,43 @@ class HuggingFaceEmbeddingProvider(EmbeddingProvider):
             raise EmbeddingProviderUnreachableError(f"HuggingFace embedding generation failed: {e}") from e
 
 
+class GeminiEmbeddingProvider(EmbeddingProvider):
+    def __init__(self, model_name: str = None, api_key: str = None):
+        self.model_name = model_name or os.getenv("GEMINI_EMBEDDING_MODEL", "models/gemini-embedding-001")
+        self.api_key = api_key or os.getenv("GEMINI_API_KEY")
+        self.configured = False
+
+    def _init_api(self):
+        if not self.configured:
+            if not self.api_key:
+                raise EmbeddingProviderConfigError(
+                    "Gemini API key missing. Set GEMINI_API_KEY in environment variables."
+                )
+            try:
+                import google.generativeai as genai
+                genai.configure(api_key=self.api_key)
+                self.configured = True
+            except Exception as e:
+                logger.error(f"Failed to configure Google Generative AI client: {e}")
+                raise EmbeddingProviderConfigError(f"Failed to configure Google Generative AI client: {e}") from e
+
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+        self._init_api()
+        try:
+            import google.generativeai as genai
+            result = genai.embed_content(
+                model=self.model_name,
+                content=texts,
+                task_type="retrieval_document"
+            )
+            return result["embedding"]
+        except Exception as e:
+            logger.error(f"Gemini embedding generation failed: {e}")
+            raise EmbeddingProviderUnreachableError(f"Gemini embedding generation failed: {e}") from e
+
+
 class OllamaEmbeddingProvider(EmbeddingProvider):
     def __init__(self, model_name: str = None, base_url: str = None):
         self.model_name = model_name or os.getenv("OLLAMA_EMBEDDING_MODEL", "nomic-embed-text")

@@ -177,6 +177,23 @@ def test_embedding_provider_ollama_mock():
         assert embeddings[1] == [0.3, 0.4]
 
 
+def test_embedding_provider_gemini_mock():
+    """Test Gemini embedding provider using mocked google.generativeai."""
+    mock_genai = MagicMock()
+    mock_genai.embed_content.return_value = {
+        "embedding": [[0.1, 0.2], [0.3, 0.4]]
+    }
+    
+    with patch.dict("sys.modules", {"google.generativeai": mock_genai}):
+        from embeddings.provider import GeminiEmbeddingProvider
+        provider = GeminiEmbeddingProvider(model_name="models/gemini-embedding-001", api_key="fake-key")
+        embeddings = provider.embed(["hello", "world"])
+        
+        assert len(embeddings) == 2
+        assert embeddings[0] == [0.1, 0.2]
+        assert embeddings[1] == [0.3, 0.4]
+
+
 # --- 2. ChromaDB Storage & Query Round-Trip ---
 
 def test_chroma_store_round_trip():

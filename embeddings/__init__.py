@@ -1,5 +1,5 @@
 import os
-from .provider import EmbeddingProvider, HuggingFaceEmbeddingProvider, OllamaEmbeddingProvider
+from .provider import EmbeddingProvider, HuggingFaceEmbeddingProvider, OllamaEmbeddingProvider, GeminiEmbeddingProvider
 
 def get_embedding_provider() -> EmbeddingProvider:
     """
@@ -9,6 +9,8 @@ def get_embedding_provider() -> EmbeddingProvider:
     provider_name = os.getenv("EMBEDDING_PROVIDER", "huggingface").lower()
     if provider_name == "huggingface":
         return HuggingFaceEmbeddingProvider()
+    elif provider_name == "gemini":
+        return GeminiEmbeddingProvider()
     elif provider_name == "ollama":
         return OllamaEmbeddingProvider()
     else:
