@@ -103,7 +103,17 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # API Base URL
-API_URL = os.getenv("BACKEND_URL", "http://localhost:8000").rstrip("/") + "/api"
+backend_url = "http://localhost:8000"
+try:
+    if "BACKEND_URL" in st.secrets:
+        backend_url = st.secrets["BACKEND_URL"]
+    elif os.getenv("BACKEND_URL"):
+        backend_url = os.getenv("BACKEND_URL")
+except Exception:
+    if os.getenv("BACKEND_URL"):
+        backend_url = os.getenv("BACKEND_URL")
+
+API_URL = backend_url.rstrip("/") + "/api"
 
 # Initialize Session State
 if "repository_id" not in st.session_state:
