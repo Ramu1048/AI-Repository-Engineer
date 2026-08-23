@@ -132,6 +132,9 @@ llm_provider = st.sidebar.selectbox("LLM Provider", ["gemini", "ollama"], index=
 embedding_provider = st.sidebar.selectbox("Embedding Provider", ["gemini", "ollama"], index=0)
 top_k = st.sidebar.slider("Top-K Retrieve Chunks", min_value=1, max_value=25, value=8)
 
+st.sidebar.caption(f"Backend Server: `{backend_url}`")
+st.sidebar.markdown("---")
+
 # Detect repository URL switch to clear old state (Rule 5)
 if github_url != st.session_state.prev_url:
     st.session_state.repository_id = None
