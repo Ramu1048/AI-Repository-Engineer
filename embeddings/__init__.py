@@ -6,7 +6,7 @@ def get_embedding_provider() -> EmbeddingProvider:
     Factory function to resolve and initialize the configured EmbeddingProvider
     based on the EMBEDDING_PROVIDER environment variable.
     """
-    provider_name = os.getenv("EMBEDDING_PROVIDER", "huggingface").lower()
+    provider_name = os.getenv("EMBEDDING_PROVIDER", "gemini").lower()
     if provider_name == "huggingface":
         return HuggingFaceEmbeddingProvider()
     elif provider_name == "gemini":
