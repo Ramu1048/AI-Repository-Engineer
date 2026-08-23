@@ -178,13 +178,18 @@ def test_embedding_provider_ollama_mock():
 
 
 def test_embedding_provider_gemini_mock():
-    """Test Gemini embedding provider using mocked google.generativeai."""
-    mock_genai = MagicMock()
-    mock_genai.embed_content.return_value = {
-        "embedding": [[0.1, 0.2], [0.3, 0.4]]
-    }
-    
-    with patch.dict("sys.modules", {"google.generativeai": mock_genai}):
+    """Test Gemini embedding provider using mocked requests."""
+    with patch("requests.post") as mock_post:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "embeddings": [
+                {"values": [0.1, 0.2]},
+                {"values": [0.3, 0.4]}
+            ]
+        }
+        mock_post.return_value = mock_response
+        
         from embeddings.provider import GeminiEmbeddingProvider
         provider = GeminiEmbeddingProvider(model_name="models/gemini-embedding-001", api_key="fake-key")
         embeddings = provider.embed(["hello", "world"])
